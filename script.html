@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Kasboek">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Mijn Kasboek</title>
+<style>
+  :root{
+    --paper:#FBF7EF;
+    --paper-raised:#FFFFFF;
+    --ink:#1F2E3D;
+    --ink-soft:#5B6B7A;
+    --line:#DCD2BF;
+    --line-strong:#C6B99E;
+    --green:#3F7A57;
+    --rust:#A8482E;
+    --accent:#2F5C8A;
+    --accent-soft:#E8F0F7;
+    --radius:14px;
+    --shadow:0 2px 8px rgba(31,46,61,0.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;height:100%;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    -webkit-tap-highlight-color:transparent;
+    overscroll-behavior:none;
+    font-size:18px;
+  }
+  h1,h2,h3{
+    font-family:Georgia,"Times New Roman",serif;
+    font-weight:700;
+    margin:0 0 4px 0;
+    color:var(--ink);
+  }
+  #app{
+    max-width:640px;
+    margin:0 auto;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding-bottom:calc(78px + env(safe-area-inset-bottom));
+  }
+  header.top{
+    padding:22px 20px 14px 20px;
+    border-bottom:2px solid var(--line);
+    background:var(--paper);
+    position:sticky;
+    top:0;
+    z-index:5;
+  }
+  header.top h1{font-size:26px;letter-spacing:0.2px;}
+  header.top .sub{color:var(--ink-soft);font-size:15px;margin-top:2px;}
+
+  main{flex:1;padding:18px 18px 30px 18px;}
+  .screen{display:none;}
+  .screen.active{display:block;animation:fadein .18s ease;}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+  .card{
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:20px;
+    margin-bottom:16px;
+  }
+  .card h2{font-size:19px;margin-bottom:12px;}
+
+  .ledger-total{
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:22px 20px;
+    margin-bottom:16px;
+  }
+  .ledger-total .label{font-size:14px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:1px;}
+  .ledger-total .amount{
+    font-family:Georgia,serif;font-size:44px;font-weight:700;margin:4px 0 10px 0;
+    border-bottom:3px double var(--line-strong);padding-bottom:12px;
+  }
+  .ledger-total .amount.pos{color:var(--green);}
+  .ledger-total .amount.neg{color:var(--rust);}
+  .ledger-total .period{font-size:14px;color:var(--ink-soft);}
+
+  .quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+  .quick-btn{
+    background:var(--accent);color:#fff;border:none;border-radius:var(--radius);
+    padding:22px 12px;font-size:19px;font-weight:700;font-family:inherit;
+    display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:var(--shadow);
+  }
+  .quick-btn.secondary{background:var(--rust);}
+  .quick-btn .icon{font-size:30px;}
+
+  label{display:block;font-size:15px;color:var(--ink-soft);margin:14px 0 6px 0;font-weight:600;}
+  label:first-child{margin-top:0;}
+  input[type=text],input[type=number],input[type=date],select{
+    width:100%;padding:14px;font-size:18px;
+    border:1.5px solid var(--line-strong);border-radius:10px;
+    background:#fff;color:var(--ink);font-family:inherit;
+  }
+  input:focus,select:focus{outline:3px solid var(--accent-soft);border-color:var(--accent);}
+
+  .btw-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:6px;}
+  .btw-btn{
+    padding:14px 6px;border-radius:10px;border:1.5px solid var(--line-strong);
+    background:#fff;font-size:17px;font-weight:700;color:var(--ink);text-align:center;
+  }
+  .btw-btn.selected{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+  .btn-primary{
+    width:100%;padding:16px;background:var(--accent);color:#fff;border:none;
+    border-radius:12px;font-size:19px;font-weight:700;margin-top:18px;font-family:inherit;
+  }
+  .btn-secondary{
+    width:100%;padding:14px;background:var(--paper);color:var(--ink);
+    border:1.5px solid var(--line-strong);border-radius:12px;font-size:17px;
+    font-weight:600;margin-top:10px;font-family:inherit;
+  }
+  .btn-danger-text{background:none;border:none;color:var(--rust);font-size:15px;font-weight:600;padding:8px;font-family:inherit;}
+
+  .row-item{display:flex;justify-content:space-between;align-items:center;padding:14px 4px;border-bottom:1px solid var(--line);gap:10px;}
+  .row-item:last-child{border-bottom:none;}
+  .row-item .who{font-weight:700;font-size:16px;}
+  .row-item .meta{font-size:13.5px;color:var(--ink-soft);margin-top:2px;}
+  .row-item .bedrag{font-weight:700;font-size:17px;white-space:nowrap;}
+  .row-item .bedrag.factuur{color:var(--green);}
+  .row-item .bedrag.bon{color:var(--rust);}
+
+  .empty{color:var(--ink-soft);text-align:center;padding:30px 10px;font-size:16px;}
+
+  .period-pick{display:flex;gap:8px;margin-bottom:0;flex-wrap:wrap;}
+  .period-pick select{width:auto;flex:1;min-width:110px;}
+
+  .overzicht-line{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed var(--line);font-size:16.5px;}
+  .overzicht-line:last-child{border-bottom:none;}
+  .overzicht-line .val.pos{color:var(--green);font-weight:700;}
+  .overzicht-line .val.neg{color:var(--rust);font-weight:700;}
+  .overzicht-line.total{border-top:2px solid var(--ink);margin-top:6px;padding-top:14px;font-weight:700;font-size:18px;}
+
+  nav.tabbar{
+    position:fixed;bottom:0;left:0;right:0;background:var(--paper-raised);
+    border-top:2px solid var(--line);display:flex;
+    padding-bottom:env(safe-area-inset-bottom);z-index:10;
+  }
+  nav.tabbar button{
+    flex:1;background:none;border:none;padding:10px 4px 8px 4px;
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+    color:var(--ink-soft);font-family:inherit;font-size:12.5px;font-weight:600;
+  }
+  nav.tabbar button .icon{font-size:23px;}
+  nav.tabbar button.active{color:var(--accent);}
+
+  .klant-chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+  .klant-chip{padding:10px 16px;border-radius:20px;border:1.5px solid var(--line-strong);background:#fff;font-size:15.5px;font-weight:600;}
+  .klant-chip.selected{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+  .toast{
+    position:fixed;bottom:100px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:12px 22px;border-radius:30px;
+    font-size:15px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.2);
+    opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;z-index:50;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+  .settings-block{margin-bottom:16px;}
+  .settings-block h3{font-size:16.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;}
+  .helptext{font-size:14px;color:var(--ink-soft);margin-top:6px;line-height:1.4;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="top">
+    <h1>📒 Mijn Kasboek</h1>
+    <div class="sub">Alles blijft opgeslagen op dit toestel</div>
+  </header>
+
+  <main>
+
+    <section class="screen active" id="screen-vandaag">
+      <div class="ledger-total">
+        <div class="label">Saldo t/m dit kwartaal</div>
+        <div class="amount" id="dashSaldo">€ 0,00</div>
+        <div class="period" id="dashPeriod">—</div>
+      </div>
+      <div class="quick-grid">
+        <button class="quick-btn" onclick="goTo('factuur')"><span class="icon">🧾</span>Nieuwe factuur</button>
+        <button class="quick-btn secondary" onclick="goTo('bonnetje')"><span class="icon">🧻</span>Nieuw bonnetje</button>
+      </div>
+      <div class="card">
+        <h2>Dit kwartaal</h2>
+        <div class="overzicht-line"><span>Inkomsten (incl. btw)</span><span class="val pos" id="dashIn">€ 0,00</span></div>
+        <div class="overzicht-line"><span>Uitgaven (incl. btw)</span><span class="val neg" id="dashUit">€ 0,00</span></div>
+      </div>
+      <div class="card">
+        <h2>Laatste boekingen</h2>
+        <div id="dashRecent"></div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-factuur">
+      <div class="card">
+        <h2>Nieuwe factuur</h2>
+        <label>Klant</label>
+        <div class="klant-chip-row" id="factuurKlanten"></div>
+        <div class="helptext" id="factuurKlantHint">Nog geen klanten? Voeg ze toe bij "Beheer".</div>
+        <label>Datum</label>
+        <input type="date" id="factuurDatum">
+        <label>Bedrag excl. btw (€)</label>
+        <input type="number" id="factuurBedrag" inputmode="decimal" placeholder="0,00" step="0.01">
+        <label>Btw-percentage</label>
+        <div class="btw-row" id="factuurBtwRow">
+          <div class="btw-btn" data-btw="0" onclick="selectBtw('factuur',0)">0%</div>
+          <div class="btw-btn selected" data-btw="9" onclick="selectBtw('factuur',9)">9%</div>
+          <div class="btw-btn" data-btw="21" onclick="selectBtw('factuur',21)">21%</div>
+        </div>
+        <div class="overzicht-line total" style="margin-top:16px;">
+          <span>Totaal incl. btw</span><span id="factuurTotaal">€ 0,00</span>
+        </div>
+        <button class="btn-primary" onclick="opslaanFactuur()">Factuur opslaan</button>
+      </div>
+      <div class="card">
+        <h2>Recente facturen</h2>
+        <div id="factuurLijst"></div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-bonnetje">
+      <div class="card">
+        <h2>Nieuw bonnetje</h2>
+        <label>Omschrijving</label>
+        <input type="text" id="bonOmschrijving" placeholder="Bijv. kantoorspullen, benzine...">
+        <label>Datum</label>
+        <input type="date" id="bonDatum">
+        <label>Bedrag incl. btw (€)</label>
+        <input type="number" id="bonBedrag" inputmode="decimal" placeholder="0,00" step="0.01">
+        <label>Btw-percentage</label>
+        <div class="btw-row" id="bonBtwRow">
+          <div class="btw-btn" data-btw="0" onclick="selectBtw('bon',0)">0%</div>
+          <div class="btw-btn" data-btw="9" onclick="selectBtw('bon',9)">9%</div>
+          <div class="btw-btn selected" data-btw="21" onclick="selectBtw('bon',21)">21%</div>
+        </div>
+        <div class="overzicht-line total" style="margin-top:16px;">
+          <span>Waarvan btw</span><span id="bonBtwBedrag">€ 0,00</span>
+        </div>
+        <button class="btn-primary" onclick="opslaanBon()">Bonnetje opslaan</button>
+      </div>
+      <div class="card">
+        <h2>Recente bonnetjes</h2>
+        <div id="bonLijst"></div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-overzicht">
+      <div class="card">
+        <h2>Periode kiezen</h2>
+        <div class="period-pick">
+          <select id="ovJaar" onchange="renderOverzicht()"></select>
+          <select id="ovKwartaal" onchange="renderOverzicht()">
+            <option value="1">Kwartaal 1 (jan-mrt)</option>
+            <option value="2">Kwartaal 2 (apr-jun)</option>
+            <option value="3">Kwartaal 3 (jul-sep)</option>
+            <option value="4">Kwartaal 4 (okt-dec)</option>
+          </select>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Resultaat dit kwartaal</h2>
+        <div class="overzicht-line"><span>Inkomsten excl. btw</span><span class="val pos" id="ovInExcl">€ 0,00</span></div>
+        <div class="overzicht-line"><span>Uitgaven excl. btw</span><span class="val neg" id="ovUitExcl">€ 0,00</span></div>
+        <div class="overzicht-line total"><span>Winst dit kwartaal</span><span id="ovWinst">€ 0,00</span></div>
+      </div>
+      <div class="card">
+        <h2>Btw-aangifte (indicatie)</h2>
+        <div class="overzicht-line"><span>Btw ontvangen op facturen</span><span class="val pos" id="ovBtwFact">€ 0,00</span></div>
+        <div class="overzicht-line"><span>Btw betaald op bonnetjes</span><span class="val neg" id="ovBtwBon">€ 0,00</span></div>
+        <div class="overzicht-line total"><span id="ovBtwLabel">Btw af te dragen</span><span id="ovBtwSaldo">€ 0,00</span></div>
+        <div class="helptext">Handige indicatie op basis van uw invoer — controleer altijd uw officiële btw-aangifte bij de Belastingdienst.</div>
+      </div>
+      <div class="card">
+        <h2>Banksaldo t/m dit kwartaal</h2>
+        <div class="overzicht-line"><span>Beginsaldo</span><span id="ovBegin">€ 0,00</span></div>
+        <div class="overzicht-line"><span>Alle inkomsten (incl. btw)</span><span class="val pos" id="ovAlleIn">€ 0,00</span></div>
+        <div class="overzicht-line"><span>Alle uitgaven (incl. btw)</span><span class="val neg" id="ovAlleUit">€ 0,00</span></div>
+        <div class="overzicht-line total"><span>Saldo t/m dit kwartaal</span><span id="ovEindSaldo">€ 0,00</span></div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-beheer">
+      <div class="card settings-block">
+        <h3>Beginsaldo</h3>
+        <label>Saldo bij start boekhouding (€)</label>
+        <input type="number" id="beginSaldoInput" inputmode="decimal" step="0.01">
+        <label>Vanaf datum</label>
+        <input type="date" id="beginSaldoDatum">
+        <button class="btn-primary" onclick="opslaanBeginsaldo()">Beginsaldo opslaan</button>
+      </div>
+      <div class="card settings-block">
+        <h3>Klanten</h3>
+        <label>Nieuwe klant toevoegen</label>
+        <input type="text" id="nieuweKlantNaam" placeholder="Naam klant">
+        <button class="btn-secondary" onclick="klantToevoegen()">+ Klant toevoegen</button>
+        <div id="klantenBeheerLijst" style="margin-top:14px;"></div>
+      </div>
+      <div class="card settings-block">
+        <h3>Alle boekingen</h3>
+        <div id="alleBoekingenLijst"></div>
+      </div>
+      <div class="card settings-block">
+        <h3>Back-up</h3>
+        <p class="helptext">Maak regelmatig een back-up en bewaar dat bestand in Bestanden of mail het naar uzelf. Zo raakt u nooit iets kwijt, ook niet als er iets met de iPad gebeurt.</p>
+        <button class="btn-primary" onclick="backupMaken()">⬇️ Back-up maken</button>
+        <label style="margin-top:18px;">Back-up terugzetten</label>
+        <input type="file" id="restoreFile" accept=".json" onchange="backupHerstellen(event)">
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab-btn active" data-tab="vandaag" onclick="goTo('vandaag')"><span class="icon">🏠</span>Vandaag</button>
+    <button class="tab-btn" data-tab="factuur" onclick="goTo('factuur')"><span class="icon">🧾</span>Factuur</button>
+    <button class="tab-btn" data-tab="bonnetje" onclick="goTo('bonnetje')"><span class="icon">🧻</span>Bonnetje</button>
+    <button class="tab-btn" data-tab="overzicht" onclick="goTo('overzicht')"><span class="icon">📊</span>Overzicht</button>
+    <button class="tab-btn" data-tab="beheer" onclick="goTo('beheer')"><span class="icon">⚙️</span>Beheer</button>
+  </nav>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const STORAGE_KEY = 'kasboek_data_v1';
+
+function leegState(){
+  return {
+    beginSaldo: { bedrag: 0, datum: new Date().toISOString().slice(0,10) },
+    klanten: [],
+    boekingen: []
+  };
+}
+let state = laadState();
+
+function laadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return leegState();
+    const parsed = JSON.parse(raw);
+    if(!parsed.beginSaldo || !Array.isArray(parsed.klanten) || !Array.isArray(parsed.boekingen)) return leegState();
+    return parsed;
+  }catch(e){ console.error(e); return leegState(); }
+}
+function bewaarState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch(e){ toon('⚠️ Opslaan mislukt — maak een back-up'); console.error(e); }
+}
+
+function euro(n){ const v=Number(n)||0; return '€ '+v.toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function vandaag(){ return new Date().toISOString().slice(0,10); }
+function toon(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toon._h); toon._h=setTimeout(()=>t.classList.remove('show'),2200);
+}
+function kwartaalVan(d){ return Math.floor(new Date(d).getMonth()/3)+1; }
+function jaarVan(d){ return new Date(d).getFullYear(); }
+function weergaveDatum(iso){ return new Date(iso).toLocaleDateString('nl-NL',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+
+let huidigeBtw = { factuur: 9, bon: 21 };
+let geselecteerdeKlant = null;
+
+function goTo(tab){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+tab).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  window.scrollTo(0,0);
+  if(tab==='vandaag') renderDashboard();
+  if(tab==='factuur') renderFactuurScherm();
+  if(tab==='bonnetje') renderBonScherm();
+  if(tab==='overzicht') renderOverzicht();
+  if(tab==='beheer') renderBeheer();
+}
+
+function selectBtw(context, pct){
+  huidigeBtw[context]=pct;
+  const rowId = context==='factuur' ? 'factuurBtwRow' : 'bonBtwRow';
+  document.querySelectorAll('#'+rowId+' .btw-btn').forEach(b=>b.classList.toggle('selected', Number(b.dataset.btw)===pct));
+  if(context==='factuur') updateFactuurTotaal(); else updateBonBtwBedrag();
+}
+
+function renderFactuurScherm(){
+  const dIn=document.getElementById('factuurDatum'); if(!dIn.value) dIn.value=vandaag();
+  const wrap=document.getElementById('factuurKlanten'); wrap.innerHTML='';
+  if(state.klanten.length===0){
+    document.getElementById('factuurKlantHint').style.display='block';
+  } else {
+    document.getElementById('factuurKlantHint').style.display='none';
+    if(geselecteerdeKlant===null) geselecteerdeKlant=state.klanten[0].id;
+    state.klanten.forEach(k=>{
+      const chip=document.createElement('div');
+      chip.className='klant-chip'+(geselecteerdeKlant===k.id?' selected':'');
+      chip.textContent=k.naam;
+      chip.onclick=()=>{ geselecteerdeKlant=k.id; renderFactuurScherm(); };
+      wrap.appendChild(chip);
+    });
+  }
+  updateFactuurTotaal(); renderFactuurLijst();
+}
+function updateFactuurTotaal(){
+  const bedrag=parseFloat(document.getElementById('factuurBedrag').value)||0;
+  document.getElementById('factuurTotaal').textContent=euro(bedrag*(1+huidigeBtw.factuur/100));
+}
+function opslaanFactuur(){
+  const datum=document.getElementById('factuurDatum').value||vandaag();
+  const bedragExcl=parseFloat(document.getElementById('factuurBedrag').value);
+  if(!bedragExcl||bedragExcl<=0){ toon('Vul een geldig bedrag in'); return; }
+  if(state.klanten.length>0 && !geselecteerdeKlant){ toon('Kies een klant'); return; }
+  const btw=huidigeBtw.factuur, bedragBtw=bedragExcl*btw/100;
+  state.boekingen.push({id:uid(),type:'factuur',datum,klantId:geselecteerdeKlant,bedragExcl,btw,bedragBtw,bedragIncl:bedragExcl+bedragBtw});
+  bewaarState();
+  document.getElementById('factuurBedrag').value=''; updateFactuurTotaal();
+  toon('✅ Factuur opgeslagen'); renderFactuurLijst();
+}
+function klantNaam(id){ const k=state.klanten.find(x=>x.id===id); return k?k.naam:'—'; }
+function renderFactuurLijst(){
+  const lijst=state.boekingen.filter(b=>b.type==='factuur').sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,8);
+  const el=document.getElementById('factuurLijst');
+  if(lijst.length===0){ el.innerHTML='<div class="empty">Nog geen facturen ingevoerd</div>'; return; }
+  el.innerHTML=lijst.map(b=>`<div class="row-item"><div><div class="who">${klantNaam(b.klantId)}</div><div class="meta">${weergaveDatum(b.datum)} · ${b.btw}% btw</div></div><div style="text-align:right;"><div class="bedrag factuur">${euro(b.bedragIncl)}</div><button class="btn-danger-text" onclick="verwijderBoeking('${b.id}')">verwijderen</button></div></div>`).join('');
+}
+
+function renderBonScherm(){
+  const dIn=document.getElementById('bonDatum'); if(!dIn.value) dIn.value=vandaag();
+  updateBonBtwBedrag(); renderBonLijst();
+}
+function updateBonBtwBedrag(){
+  const bedragIncl=parseFloat(document.getElementById('bonBedrag').value)||0;
+  const btw=huidigeBtw.bon;
+  document.getElementById('bonBtwBedrag').textContent=euro(bedragIncl-(bedragIncl/(1+btw/100)));
+}
+function opslaanBon(){
+  const datum=document.getElementById('bonDatum').value||vandaag();
+  const omschrijving=document.getElementById('bonOmschrijving').value.trim();
+  const bedragIncl=parseFloat(document.getElementById('bonBedrag').value);
+  if(!bedragIncl||bedragIncl<=0){ toon('Vul een geldig bedrag in'); return; }
+  if(!omschrijving){ toon('Vul een omschrijving in'); return; }
+  const btw=huidigeBtw.bon, bedragBtw=bedragIncl-(bedragIncl/(1+btw/100)), bedragExcl=bedragIncl-bedragBtw;
+  state.boekingen.push({id:uid(),type:'bon',datum,omschrijving,bedragExcl,btw,bedragBtw,bedragIncl});
+  bewaarState();
+  document.getElementById('bonBedrag').value=''; document.getElementById('bonOmschrijving').value='';
+  updateBonBtwBedrag(); toon('✅ Bonnetje opgeslagen'); renderBonLijst();
+}
+function renderBonLijst(){
+  const lijst=state.boekingen.filter(b=>b.type==='bon').sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,8);
+  const el=document.getElementById('bonLijst');
+  if(lijst.length===0){ el.innerHTML='<div class="empty">Nog geen bonnetjes ingevoerd</div>'; return; }
+  el.innerHTML=lijst.map(b=>`<div class="row-item"><div><div class="who">${b.omschrijving}</div><div class="meta">${weergaveDatum(b.datum)} · ${b.btw}% btw</div></div><div style="text-align:right;"><div class="bedrag bon">-${euro(b.bedragIncl)}</div><button class="btn-danger-text" onclick="verwijderBoeking('${b.id}')">verwijderen</button></div></div>`).join('');
+}
+
+function verwijderBoeking(id){
+  if(!confirm('Deze boeking verwijderen?')) return;
+  state.boekingen=state.boekingen.filter(b=>b.id!==id);
+  bewaarState();
+  renderFactuurLijst(); renderBonLijst(); renderDashboard(); renderBeheer();
+}
+
+function huidigKwartaalInfo(){ const nu=new Date(); return {jaar:nu.getFullYear(),kwartaal:Math.floor(nu.getMonth()/3)+1}; }
+function berekenPeriode(jaar,kwartaal){
+  const startMaand=(kwartaal-1)*3;
+  const eindeDatum=new Date(jaar,startMaand+3,0);
+  const tot=state.boekingen.filter(b=>new Date(b.datum)<=eindeDatum);
+  const inKw=state.boekingen.filter(b=>jaarVan(b.datum)===jaar&&kwartaalVan(b.datum)===kwartaal);
+  const som=(arr,v)=>arr.reduce((s,b)=>s+b[v],0);
+  const inKwF=inKw.filter(b=>b.type==='factuur'), uitKwB=inKw.filter(b=>b.type==='bon');
+  const beginBedrag=new Date(state.beginSaldo.datum)<=eindeDatum?state.beginSaldo.bedrag:0;
+  return {
+    inKwartaalIncl:som(inKwF,'bedragIncl'), uitKwartaalIncl:som(uitKwB,'bedragIncl'),
+    inKwartaalExcl:som(inKwF,'bedragExcl'), uitKwartaalExcl:som(uitKwB,'bedragExcl'),
+    btwFactKwartaal:som(inKwF,'bedragBtw'), btwBonKwartaal:som(uitKwB,'bedragBtw'),
+    beginBedrag,
+    alleInTotIncl:som(tot.filter(b=>b.type==='factuur'),'bedragIncl'),
+    alleUitTotIncl:som(tot.filter(b=>b.type==='bon'),'bedragIncl')
+  };
+}
+function renderDashboard(){
+  const {jaar,kwartaal}=huidigKwartaalInfo();
+  const p=berekenPeriode(jaar,kwartaal);
+  const saldo=p.beginBedrag+p.alleInTotIncl-p.alleUitTotIncl;
+  const el=document.getElementById('dashSaldo');
+  el.textContent=euro(saldo); el.classList.toggle('pos',saldo>=0); el.classList.toggle('neg',saldo<0);
+  document.getElementById('dashPeriod').textContent=`Kwartaal ${kwartaal}, ${jaar}`;
+  document.getElementById('dashIn').textContent=euro(p.inKwartaalIncl);
+  document.getElementById('dashUit').textContent=euro(p.uitKwartaalIncl);
+  const recent=[...state.boekingen].sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,5);
+  const box=document.getElementById('dashRecent');
+  if(recent.length===0){ box.innerHTML='<div class="empty">Nog geen boekingen — begin met een factuur of bonnetje</div>'; return; }
+  box.innerHTML=recent.map(b=> b.type==='factuur'
+    ? `<div class="row-item"><div><div class="who">${klantNaam(b.klantId)}</div><div class="meta">${weergaveDatum(b.datum)}</div></div><div class="bedrag factuur">${euro(b.bedragIncl)}</div></div>`
+    : `<div class="row-item"><div><div class="who">${b.omschrijving}</div><div class="meta">${weergaveDatum(b.datum)}</div></div><div class="bedrag bon">-${euro(b.bedragIncl)}</div></div>`
+  ).join('');
+}
+
+function vulJarenSelect(){
+  const sel=document.getElementById('ovJaar');
+  const jaren=new Set(state.boekingen.map(b=>jaarVan(b.datum)));
+  jaren.add(new Date().getFullYear()); jaren.add(jaarVan(state.beginSaldo.datum));
+  const arr=[...jaren].sort((a,b)=>b-a);
+  const huidig=sel.value||String(new Date().getFullYear());
+  sel.innerHTML=arr.map(j=>`<option value="${j}">${j}</option>`).join('');
+  sel.value=arr.includes(Number(huidig))?huidig:arr[0];
+}
+function renderOverzicht(){
+  vulJarenSelect();
+  const jaar=Number(document.getElementById('ovJaar').value);
+  const kwartaal=Number(document.getElementById('ovKwartaal').value);
+  const p=berekenPeriode(jaar,kwartaal);
+  document.getElementById('ovInExcl').textContent=euro(p.inKwartaalExcl);
+  document.getElementById('ovUitExcl').textContent=euro(p.uitKwartaalExcl);
+  document.getElementById('ovWinst').textContent=euro(p.inKwartaalExcl-p.uitKwartaalExcl);
+  document.getElementById('ovBtwFact').textContent=euro(p.btwFactKwartaal);
+  document.getElementById('ovBtwBon').textContent=euro(p.btwBonKwartaal);
+  const btwSaldo=p.btwFactKwartaal-p.btwBonKwartaal;
+  document.getElementById('ovBtwLabel').textContent=btwSaldo>=0?'Btw af te dragen':'Btw terug te ontvangen';
+  document.getElementById('ovBtwSaldo').textContent=euro(Math.abs(btwSaldo));
+  document.getElementById('ovBegin').textContent=euro(p.beginBedrag);
+  document.getElementById('ovAlleIn').textContent=euro(p.alleInTotIncl);
+  document.getElementById('ovAlleUit').textContent=euro(p.alleUitTotIncl);
+  document.getElementById('ovEindSaldo').textContent=euro(p.beginBedrag+p.alleInTotIncl-p.alleUitTotIncl);
+}
+
+function renderBeheer(){
+  document.getElementById('beginSaldoInput').value=state.beginSaldo.bedrag||'';
+  document.getElementById('beginSaldoDatum').value=state.beginSaldo.datum;
+  const kEl=document.getElementById('klantenBeheerLijst');
+  kEl.innerHTML = state.klanten.length===0
+    ? '<div class="empty">Nog geen klanten toegevoegd</div>'
+    : state.klanten.map(k=>`<div class="row-item"><div class="who">${k.naam}</div><button class="btn-danger-text" onclick="klantVerwijderen('${k.id}')">verwijderen</button></div>`).join('');
+  const alle=[...state.boekingen].sort((a,b)=>b.datum.localeCompare(a.datum));
+  const aEl=document.getElementById('alleBoekingenLijst');
+  aEl.innerHTML = alle.length===0
+    ? '<div class="empty">Nog geen boekingen</div>'
+    : alle.map(b=>{
+        const naam=b.type==='factuur'?klantNaam(b.klantId):b.omschrijving;
+        const kleur=b.type==='factuur'?'factuur':'bon';
+        const teken=b.type==='factuur'?'':'-';
+        return `<div class="row-item"><div><div class="who">${naam}</div><div class="meta">${weergaveDatum(b.datum)} · ${b.type==='factuur'?'Factuur':'Bonnetje'} · ${b.btw}%</div></div><div style="text-align:right;"><div class="bedrag ${kleur}">${teken}${euro(b.bedragIncl)}</div><button class="btn-danger-text" onclick="verwijderBoeking('${b.id}')">verwijderen</button></div></div>`;
+      }).join('');
+}
+function opslaanBeginsaldo(){
+  const bedrag=parseFloat(document.getElementById('beginSaldoInput').value)||0;
+  const datum=document.getElementById('beginSaldoDatum').value||vandaag();
+  state.beginSaldo={bedrag,datum}; bewaarState();
+  toon('✅ Beginsaldo opgeslagen'); renderDashboard();
+}
+function klantToevoegen(){
+  const input=document.getElementById('nieuweKlantNaam'); const naam=input.value.trim();
+  if(!naam){ toon('Vul een naam in'); return; }
+  state.klanten.push({id:uid(),naam}); bewaarState();
+  input.value=''; toon('✅ Klant toegevoegd'); renderBeheer();
+}
+function klantVerwijderen(id){
+  if(!confirm('Deze klant verwijderen? Bestaande facturen blijven bewaard.')) return;
+  state.klanten=state.klanten.filter(k=>k.id!==id); bewaarState(); renderBeheer();
+}
+
+function backupMaken(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`kasboek-backup-${vandaag()}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url); toon('⬇️ Back-up gedownload');
+}
+function backupHerstellen(event){
+  const file=event.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=(e)=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.beginSaldo||!Array.isArray(data.klanten)||!Array.isArray(data.boekingen)){ toon('❌ Geen geldig back-up bestand'); return; }
+      if(!confirm('Huidige gegevens vervangen door deze back-up?')){ event.target.value=''; return; }
+      state=data; bewaarState(); toon('✅ Back-up hersteld'); renderBeheer(); renderDashboard();
+    }catch(err){ toon('❌ Kon bestand niet lezen'); console.error(err); }
+    event.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+document.addEventListener('input',(e)=>{
+  if(e.target.id==='factuurBedrag') updateFactuurTotaal();
+  if(e.target.id==='bonBedrag') updateBonBtwBedrag();
+});
+window.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('factuurDatum').value=vandaag();
+  document.getElementById('bonDatum').value=vandaag();
+  renderDashboard();
+});
+</script>
+</body>
+</html>
