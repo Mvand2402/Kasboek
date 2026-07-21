@@ -239,6 +239,8 @@
         <label>Klant</label>
         <div class="klant-chip-row" id="factuurKlanten"></div>
         <div class="helptext" id="factuurKlantHint">Nog geen klanten? Voeg ze toe bij "Beheer".</div>
+        <label>Factuurnummer</label>
+        <input type="text" id="factuurNummer" placeholder="Bijv. 2026-014">
         <label>Datum</label>
         <input type="date" id="factuurDatum">
         <label>Bedrag excl. btw (€)</label>
@@ -265,6 +267,22 @@
         <h2>Nieuw bonnetje</h2>
         <label>Omschrijving</label>
         <input type="text" id="bonOmschrijving" placeholder="Bijv. kantoorspullen, benzine...">
+        <label>Categorie</label>
+        <select id="bonCategorie" onchange="toggleBonCategorieAnders()">
+          <option value="Software">Software</option>
+          <option value="Bank">Bank</option>
+          <option value="Telefoonabonnement">Telefoonabonnement</option>
+          <option value="Kantoorartikelen">Kantoorartikelen</option>
+          <option value="Brandstof">Brandstof</option>
+          <option value="Bedrijfsmiddelen">Bedrijfsmiddelen</option>
+          <option value="Acquisitie">Acquisitie</option>
+          <option value="Relatiegeschenk">Relatiegeschenk</option>
+          <option value="Opleiding">Opleiding</option>
+          <option value="Drukwerk">Drukwerk</option>
+          <option value="Investering">Investering</option>
+          <option value="Anders">Anders (zelf invullen)</option>
+        </select>
+        <input type="text" id="bonCategorieAnders" placeholder="Vul zelf een categorie in" style="display:none;margin-top:10px;">
         <label>Datum</label>
         <input type="date" id="bonDatum">
         <label>Bedrag incl. btw (€)</label>
@@ -305,6 +323,11 @@
         <div class="overzicht-line"><span>Uitgaven excl. btw</span><span class="val neg" id="ovUitExcl">€ 0,00</span></div>
         <div class="overzicht-line total"><span>Winst dit kwartaal</span><span id="ovWinst">€ 0,00</span></div>
       </div>
+      <div class="card">
+        <h2>Uitgaven per categorie</h2>
+        <div id="ovCategorieLijst"></div>
+      </div>
+
       <div class="card">
         <h2>Btw-aangifte (indicatie)</h2>
         <div class="overzicht-line"><span>Btw ontvangen op facturen</span><span class="val pos" id="ovBtwFact">€ 0,00</span></div>
@@ -416,7 +439,7 @@ function goTo(tab){
   if(tab==='vandaag') renderDashboard();
   if(tab==='factuur') renderFactuurScherm();
   if(tab==='bonnetje') renderBonScherm();
-  if(tab==='overzicht') renderOverzicht();
+  if(tab==='overzicht') { zetOverzichtOpHuidigKwartaal(); renderOverzicht(); }
   if(tab==='beheer') renderBeheer();
 }
 
@@ -451,13 +474,15 @@ function updateFactuurTotaal(){
 }
 function opslaanFactuur(){
   const datum=document.getElementById('factuurDatum').value||vandaag();
+  const factuurNummer=document.getElementById('factuurNummer').value.trim();
   const bedragExcl=parseFloat(document.getElementById('factuurBedrag').value);
   if(!bedragExcl||bedragExcl<=0){ toon('Vul een geldig bedrag in'); return; }
   if(state.klanten.length>0 && !geselecteerdeKlant){ toon('Kies een klant'); return; }
   const btw=huidigeBtw.factuur, bedragBtw=bedragExcl*btw/100;
-  state.boekingen.push({id:uid(),type:'factuur',datum,klantId:geselecteerdeKlant,bedragExcl,btw,bedragBtw,bedragIncl:bedragExcl+bedragBtw});
+  state.boekingen.push({id:uid(),type:'factuur',datum,factuurNummer,klantId:geselecteerdeKlant,bedragExcl,btw,bedragBtw,bedragIncl:bedragExcl+bedragBtw});
   bewaarState();
-  document.getElementById('factuurBedrag').value=''; updateFactuurTotaal();
+  document.getElementById('factuurBedrag').value=''; document.getElementById('factuurNummer').value='';
+  updateFactuurTotaal();
   toon('✅ Factuur opgeslagen'); renderFactuurLijst();
 }
 function klantNaam(id){ const k=state.klanten.find(x=>x.id===id); return k?k.naam:'—'; }
@@ -465,12 +490,16 @@ function renderFactuurLijst(){
   const lijst=state.boekingen.filter(b=>b.type==='factuur').sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,8);
   const el=document.getElementById('factuurLijst');
   if(lijst.length===0){ el.innerHTML='<div class="empty">Nog geen facturen ingevoerd</div>'; return; }
-  el.innerHTML=lijst.map(b=>`<div class="row-item"><div><div class="who">${klantNaam(b.klantId)}</div><div class="meta">${weergaveDatum(b.datum)} · ${b.btw}% btw</div></div><div style="text-align:right;"><div class="bedrag factuur">${euro(b.bedragIncl)}</div><button class="btn-danger-text" onclick="verwijderBoeking('${b.id}')">verwijderen</button></div></div>`).join('');
+  el.innerHTML=lijst.map(b=>`<div class="row-item"><div><div class="who">${klantNaam(b.klantId)}${b.factuurNummer?' · '+b.factuurNummer:''}</div><div class="meta">${weergaveDatum(b.datum)} · ${b.btw}% btw</div></div><div style="text-align:right;"><div class="bedrag factuur">${euro(b.bedragIncl)}</div><button class="btn-danger-text" onclick="verwijderBoeking('${b.id}')">verwijderen</button></div></div>`).join('');
 }
 
 function renderBonScherm(){
   const dIn=document.getElementById('bonDatum'); if(!dIn.value) dIn.value=vandaag();
   updateBonBtwBedrag(); renderBonLijst();
+}
+function toggleBonCategorieAnders(){
+  const sel=document.getElementById('bonCategorie').value;
+  document.getElementById('bonCategorieAnders').style.display = sel==='Anders' ? 'block' : 'none';
 }
 function updateBonBtwBedrag(){
   const bedragIncl=parseFloat(document.getElementById('bonBedrag').value)||0;
@@ -480,20 +509,26 @@ function updateBonBtwBedrag(){
 function opslaanBon(){
   const datum=document.getElementById('bonDatum').value||vandaag();
   const omschrijving=document.getElementById('bonOmschrijving').value.trim();
+  const categorieSel=document.getElementById('bonCategorie').value;
+  const categorieAnders=document.getElementById('bonCategorieAnders').value.trim();
+  const categorie = categorieSel==='Anders' ? (categorieAnders||'Anders') : categorieSel;
   const bedragIncl=parseFloat(document.getElementById('bonBedrag').value);
   if(!bedragIncl||bedragIncl<=0){ toon('Vul een geldig bedrag in'); return; }
   if(!omschrijving){ toon('Vul een omschrijving in'); return; }
+  if(categorieSel==='Anders' && !categorieAnders){ toon('Vul zelf een categorie in'); return; }
   const btw=huidigeBtw.bon, bedragBtw=bedragIncl-(bedragIncl/(1+btw/100)), bedragExcl=bedragIncl-bedragBtw;
-  state.boekingen.push({id:uid(),type:'bon',datum,omschrijving,bedragExcl,btw,bedragBtw,bedragIncl});
+  state.boekingen.push({id:uid(),type:'bon',datum,omschrijving,categorie,bedragExcl,btw,bedragBtw,bedragIncl});
   bewaarState();
   document.getElementById('bonBedrag').value=''; document.getElementById('bonOmschrijving').value='';
+  document.getElementById('bonCategorieAnders').value=''; document.getElementById('bonCategorie').value='Software';
+  toggleBonCategorieAnders();
   updateBonBtwBedrag(); toon('✅ Bonnetje opgeslagen'); renderBonLijst();
 }
 function renderBonLijst(){
   const lijst=state.boekingen.filter(b=>b.type==='bon').sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,8);
   const el=document.getElementById('bonLijst');
   if(lijst.length===0){ el.innerHTML='<div class="empty">Nog geen bonnetjes ingevoerd</div>'; return; }
-  el.innerHTML=lijst.map(b=>`<div class="row-item"><div><div class="who">${b.omschrijving}</div><div class="meta">${weergaveDatum(b.datum)} · ${b.btw}% btw</div></div><div style="text-align:right;"><div class="bedrag bon">-${euro(b.bedragIncl)}</div><button class="btn-danger-text" onclick="verwijderBoeking('${b.id}')">verwijderen</button></div></div>`).join('');
+  el.innerHTML=lijst.map(b=>`<div class="row-item"><div><div class="who">${b.omschrijving}</div><div class="meta">${weergaveDatum(b.datum)} · ${b.categorie||'—'} · ${b.btw}% btw</div></div><div style="text-align:right;"><div class="bedrag bon">-${euro(b.bedragIncl)}</div><button class="btn-danger-text" onclick="verwijderBoeking('${b.id}')">verwijderen</button></div></div>`).join('');
 }
 
 function verwijderBoeking(id){
@@ -512,13 +547,23 @@ function berekenPeriode(jaar,kwartaal){
   const som=(arr,v)=>arr.reduce((s,b)=>s+b[v],0);
   const inKwF=inKw.filter(b=>b.type==='factuur'), uitKwB=inKw.filter(b=>b.type==='bon');
   const beginBedrag=new Date(state.beginSaldo.datum)<=eindeDatum?state.beginSaldo.bedrag:0;
+
+  const perCategorie={};
+  uitKwB.forEach(b=>{
+    const cat=b.categorie||'Overig';
+    if(!perCategorie[cat]) perCategorie[cat]=0;
+    perCategorie[cat]+=b.bedragIncl;
+  });
+  const categorieLijst=Object.entries(perCategorie).sort((a,b)=>b[1]-a[1]);
+
   return {
     inKwartaalIncl:som(inKwF,'bedragIncl'), uitKwartaalIncl:som(uitKwB,'bedragIncl'),
     inKwartaalExcl:som(inKwF,'bedragExcl'), uitKwartaalExcl:som(uitKwB,'bedragExcl'),
     btwFactKwartaal:som(inKwF,'bedragBtw'), btwBonKwartaal:som(uitKwB,'bedragBtw'),
     beginBedrag,
     alleInTotIncl:som(tot.filter(b=>b.type==='factuur'),'bedragIncl'),
-    alleUitTotIncl:som(tot.filter(b=>b.type==='bon'),'bedragIncl')
+    alleUitTotIncl:som(tot.filter(b=>b.type==='bon'),'bedragIncl'),
+    categorieLijst
   };
 }
 function renderDashboard(){
@@ -557,6 +602,12 @@ function vulJarenSelect(){
   sel.innerHTML=arr.map(j=>`<option value="${j}">${j}</option>`).join('');
   sel.value=arr.includes(Number(huidig))?huidig:arr[0];
 }
+function zetOverzichtOpHuidigKwartaal(){
+  const {jaar,kwartaal}=huidigKwartaalInfo();
+  vulJarenSelect();
+  document.getElementById('ovJaar').value=String(jaar);
+  document.getElementById('ovKwartaal').value=String(kwartaal);
+}
 function renderOverzicht(){
   vulJarenSelect();
   const jaar=Number(document.getElementById('ovJaar').value);
@@ -565,6 +616,16 @@ function renderOverzicht(){
   document.getElementById('ovInExcl').textContent=euro(p.inKwartaalExcl);
   document.getElementById('ovUitExcl').textContent=euro(p.uitKwartaalExcl);
   document.getElementById('ovWinst').textContent=euro(p.inKwartaalExcl-p.uitKwartaalExcl);
+
+  const catEl=document.getElementById('ovCategorieLijst');
+  if(p.categorieLijst.length===0){
+    catEl.innerHTML='<div class="empty">Nog geen uitgaven dit kwartaal</div>';
+  } else {
+    catEl.innerHTML=p.categorieLijst.map(([cat,bedrag])=>
+      `<div class="overzicht-line"><span>${cat}</span><span class="val neg">${euro(bedrag)}</span></div>`
+    ).join('');
+  }
+
   document.getElementById('ovBtwFact').textContent=euro(p.btwFactKwartaal);
   document.getElementById('ovBtwBon').textContent=euro(p.btwBonKwartaal);
   const btwSaldo=p.btwFactKwartaal-p.btwBonKwartaal;
@@ -588,10 +649,11 @@ function renderBeheer(){
   aEl.innerHTML = alle.length===0
     ? '<div class="empty">Nog geen boekingen</div>'
     : alle.map(b=>{
-        const naam=b.type==='factuur'?klantNaam(b.klantId):b.omschrijving;
+        const naam=b.type==='factuur'?(klantNaam(b.klantId)+(b.factuurNummer?' · '+b.factuurNummer:'')):b.omschrijving;
         const kleur=b.type==='factuur'?'factuur':'bon';
         const teken=b.type==='factuur'?'':'-';
-        return `<div class="row-item"><div><div class="who">${naam}</div><div class="meta">${weergaveDatum(b.datum)} · ${b.type==='factuur'?'Factuur':'Bonnetje'} · ${b.btw}%</div></div><div style="text-align:right;"><div class="bedrag ${kleur}">${teken}${euro(b.bedragIncl)}</div><button class="btn-danger-text" onclick="verwijderBoeking('${b.id}')">verwijderen</button></div></div>`;
+        const typeLabel = b.type==='factuur' ? 'Factuur' : ('Bonnetje · '+(b.categorie||'—'));
+        return `<div class="row-item"><div><div class="who">${naam}</div><div class="meta">${weergaveDatum(b.datum)} · ${typeLabel} · ${b.btw}%</div></div><div style="text-align:right;"><div class="bedrag ${kleur}">${teken}${euro(b.bedragIncl)}</div><button class="btn-danger-text" onclick="verwijderBoeking('${b.id}')">verwijderen</button></div></div>`;
       }).join('');
   const lb = document.getElementById('laatsteBackupTekst');
   lb.textContent = state.laatsteBackup
