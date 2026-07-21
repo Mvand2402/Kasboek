@@ -20,6 +20,8 @@
     --rust:#A8482E;
     --accent:#2F5C8A;
     --accent-soft:#E8F0F7;
+    --warn:#B8863B;
+    --warn-soft:#FBF0DD;
     --radius:14px;
     --shadow:0 2px 8px rgba(31,46,61,0.08);
   }
@@ -73,6 +75,23 @@
     margin-bottom:16px;
   }
   .card h2{font-size:19px;margin-bottom:12px;}
+
+  .backup-nudge{
+    background:var(--warn-soft);
+    border:1.5px solid var(--warn);
+    border-radius:var(--radius);
+    padding:16px 18px;
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .backup-nudge .txt{flex:1;font-size:15.5px;color:var(--ink);}
+  .backup-nudge .txt b{display:block;font-size:16.5px;margin-bottom:2px;}
+  .backup-nudge button{
+    background:var(--warn);color:#fff;border:none;border-radius:10px;
+    padding:12px 16px;font-weight:700;font-size:15px;font-family:inherit;white-space:nowrap;
+  }
 
   .ledger-total{
     background:var(--paper-raised);
@@ -174,6 +193,7 @@
   .settings-block{margin-bottom:16px;}
   .settings-block h3{font-size:16.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;}
   .helptext{font-size:14px;color:var(--ink-soft);margin-top:6px;line-height:1.4;}
+  .laatste-backup{font-size:14px;color:var(--ink-soft);margin-top:10px;}
 </style>
 </head>
 <body>
@@ -187,11 +207,17 @@
   <main>
 
     <section class="screen active" id="screen-vandaag">
+      <div class="backup-nudge" id="backupNudge" style="display:none;">
+        <div class="txt"><b>Tijd voor een back-up</b>Het is alweer even geleden. Eén tik en u zit veilig.</div>
+        <button onclick="backupMaken()">Nu maken</button>
+      </div>
+
       <div class="ledger-total">
         <div class="label">Saldo t/m dit kwartaal</div>
         <div class="amount" id="dashSaldo">€ 0,00</div>
         <div class="period" id="dashPeriod">—</div>
       </div>
+
       <div class="quick-grid">
         <button class="quick-btn" onclick="goTo('factuur')"><span class="icon">🧾</span>Nieuwe factuur</button>
         <button class="quick-btn secondary" onclick="goTo('bonnetje')"><span class="icon">🧻</span>Nieuw bonnetje</button>
@@ -317,8 +343,9 @@
       </div>
       <div class="card settings-block">
         <h3>Back-up</h3>
-        <p class="helptext">Maak regelmatig een back-up en bewaar dat bestand in Bestanden of mail het naar uzelf. Zo raakt u nooit iets kwijt, ook niet als er iets met de iPad gebeurt.</p>
+        <p class="helptext">Maak een back-up en bewaar dat bestand in Bestanden of mail het naar uzelf. De app herinnert u er hierboven vanzelf aan als het weer eens tijd is.</p>
         <button class="btn-primary" onclick="backupMaken()">⬇️ Back-up maken</button>
+        <div class="laatste-backup" id="laatsteBackupTekst"></div>
         <label style="margin-top:18px;">Back-up terugzetten</label>
         <input type="file" id="restoreFile" accept=".json" onchange="backupHerstellen(event)">
       </div>
@@ -339,12 +366,14 @@
 
 <script>
 const STORAGE_KEY = 'kasboek_data_v1';
+const BACKUP_REMINDER_DAGEN = 14;
 
 function leegState(){
   return {
     beginSaldo: { bedrag: 0, datum: new Date().toISOString().slice(0,10) },
     klanten: [],
-    boekingen: []
+    boekingen: [],
+    laatsteBackup: null
   };
 }
 let state = laadState();
@@ -355,6 +384,7 @@ function laadState(){
     if(!raw) return leegState();
     const parsed = JSON.parse(raw);
     if(!parsed.beginSaldo || !Array.isArray(parsed.klanten) || !Array.isArray(parsed.boekingen)) return leegState();
+    if(parsed.laatsteBackup === undefined) parsed.laatsteBackup = null;
     return parsed;
   }catch(e){ console.error(e); return leegState(); }
 }
@@ -373,6 +403,7 @@ function toon(msg){
 function kwartaalVan(d){ return Math.floor(new Date(d).getMonth()/3)+1; }
 function jaarVan(d){ return new Date(d).getFullYear(); }
 function weergaveDatum(iso){ return new Date(iso).toLocaleDateString('nl-NL',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function weergaveDatumTijd(iso){ return new Date(iso).toLocaleString('nl-NL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
 
 let huidigeBtw = { factuur: 9, bon: 21 };
 let geselecteerdeKlant = null;
@@ -491,6 +522,7 @@ function berekenPeriode(jaar,kwartaal){
   };
 }
 function renderDashboard(){
+  checkBackupHerinnering();
   const {jaar,kwartaal}=huidigKwartaalInfo();
   const p=berekenPeriode(jaar,kwartaal);
   const saldo=p.beginBedrag+p.alleInTotIncl-p.alleUitTotIncl;
@@ -506,6 +538,14 @@ function renderDashboard(){
     ? `<div class="row-item"><div><div class="who">${klantNaam(b.klantId)}</div><div class="meta">${weergaveDatum(b.datum)}</div></div><div class="bedrag factuur">${euro(b.bedragIncl)}</div></div>`
     : `<div class="row-item"><div><div class="who">${b.omschrijving}</div><div class="meta">${weergaveDatum(b.datum)}</div></div><div class="bedrag bon">-${euro(b.bedragIncl)}</div></div>`
   ).join('');
+}
+
+function checkBackupHerinnering(){
+  const nudge = document.getElementById('backupNudge');
+  if(state.boekingen.length===0){ nudge.style.display='none'; return; }
+  if(!state.laatsteBackup){ nudge.style.display='flex'; return; }
+  const dagenGeleden = (Date.now() - new Date(state.laatsteBackup).getTime()) / (1000*60*60*24);
+  nudge.style.display = dagenGeleden >= BACKUP_REMINDER_DAGEN ? 'flex' : 'none';
 }
 
 function vulJarenSelect(){
@@ -553,6 +593,10 @@ function renderBeheer(){
         const teken=b.type==='factuur'?'':'-';
         return `<div class="row-item"><div><div class="who">${naam}</div><div class="meta">${weergaveDatum(b.datum)} · ${b.type==='factuur'?'Factuur':'Bonnetje'} · ${b.btw}%</div></div><div style="text-align:right;"><div class="bedrag ${kleur}">${teken}${euro(b.bedragIncl)}</div><button class="btn-danger-text" onclick="verwijderBoeking('${b.id}')">verwijderen</button></div></div>`;
       }).join('');
+  const lb = document.getElementById('laatsteBackupTekst');
+  lb.textContent = state.laatsteBackup
+    ? `Laatste back-up: ${weergaveDatumTijd(state.laatsteBackup)}`
+    : 'Nog geen back-up gemaakt';
 }
 function opslaanBeginsaldo(){
   const bedrag=parseFloat(document.getElementById('beginSaldoInput').value)||0;
@@ -577,7 +621,12 @@ function backupMaken(){
   const a=document.createElement('a');
   a.href=url; a.download=`kasboek-backup-${vandaag()}.json`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url); toon('⬇️ Back-up gedownload');
+  URL.revokeObjectURL(url);
+  state.laatsteBackup = new Date().toISOString();
+  bewaarState();
+  toon('⬇️ Back-up gedownload');
+  checkBackupHerinnering();
+  renderBeheer();
 }
 function backupHerstellen(event){
   const file=event.target.files[0]; if(!file) return;
@@ -587,7 +636,9 @@ function backupHerstellen(event){
       const data=JSON.parse(e.target.result);
       if(!data.beginSaldo||!Array.isArray(data.klanten)||!Array.isArray(data.boekingen)){ toon('❌ Geen geldig back-up bestand'); return; }
       if(!confirm('Huidige gegevens vervangen door deze back-up?')){ event.target.value=''; return; }
-      state=data; bewaarState(); toon('✅ Back-up hersteld'); renderBeheer(); renderDashboard();
+      state=data;
+      if(!state.laatsteBackup) state.laatsteBackup = new Date().toISOString();
+      bewaarState(); toon('✅ Back-up hersteld'); renderBeheer(); renderDashboard();
     }catch(err){ toon('❌ Kon bestand niet lezen'); console.error(err); }
     event.target.value='';
   };
