@@ -208,7 +208,7 @@
 
     <section class="screen active" id="screen-vandaag">
       <div class="backup-nudge" id="backupNudge" style="display:none;">
-        <div class="txt"><b>Tijd voor een back-up</b>Het is alweer even geleden. Eén tik en u zit veilig.</div>
+        <div class="txt"><b>Tijd voor een back-up</b><span id="backupNudgeTekst">Er zijn nieuwe boekingen sinds uw laatste back-up.</span></div>
         <button onclick="backupMaken()">Nu maken</button>
       </div>
 
@@ -389,14 +389,15 @@
 
 <script>
 const STORAGE_KEY = 'kasboek_data_v1';
-const BACKUP_REMINDER_DAGEN = 14;
+const BACKUP_REMINDER_AANTAL = 3;
 
 function leegState(){
   return {
     beginSaldo: { bedrag: 0, datum: new Date().toISOString().slice(0,10) },
     klanten: [],
     boekingen: [],
-    laatsteBackup: null
+    laatsteBackup: null,
+    boekingenSindsBackup: 0
   };
 }
 let state = laadState();
@@ -408,6 +409,7 @@ function laadState(){
     const parsed = JSON.parse(raw);
     if(!parsed.beginSaldo || !Array.isArray(parsed.klanten) || !Array.isArray(parsed.boekingen)) return leegState();
     if(parsed.laatsteBackup === undefined) parsed.laatsteBackup = null;
+    if(typeof parsed.boekingenSindsBackup !== 'number') parsed.boekingenSindsBackup = 0;
     return parsed;
   }catch(e){ console.error(e); return leegState(); }
 }
@@ -480,6 +482,7 @@ function opslaanFactuur(){
   if(state.klanten.length>0 && !geselecteerdeKlant){ toon('Kies een klant'); return; }
   const btw=huidigeBtw.factuur, bedragBtw=bedragExcl*btw/100;
   state.boekingen.push({id:uid(),type:'factuur',datum,factuurNummer,klantId:geselecteerdeKlant,bedragExcl,btw,bedragBtw,bedragIncl:bedragExcl+bedragBtw});
+  state.boekingenSindsBackup = (state.boekingenSindsBackup||0) + 1;
   bewaarState();
   document.getElementById('factuurBedrag').value=''; document.getElementById('factuurNummer').value='';
   updateFactuurTotaal();
@@ -518,6 +521,7 @@ function opslaanBon(){
   if(categorieSel==='Anders' && !categorieAnders){ toon('Vul zelf een categorie in'); return; }
   const btw=huidigeBtw.bon, bedragBtw=bedragIncl-(bedragIncl/(1+btw/100)), bedragExcl=bedragIncl-bedragBtw;
   state.boekingen.push({id:uid(),type:'bon',datum,omschrijving,categorie,bedragExcl,btw,bedragBtw,bedragIncl});
+  state.boekingenSindsBackup = (state.boekingenSindsBackup||0) + 1;
   bewaarState();
   document.getElementById('bonBedrag').value=''; document.getElementById('bonOmschrijving').value='';
   document.getElementById('bonCategorieAnders').value=''; document.getElementById('bonCategorie').value='Software';
@@ -588,9 +592,17 @@ function renderDashboard(){
 function checkBackupHerinnering(){
   const nudge = document.getElementById('backupNudge');
   if(state.boekingen.length===0){ nudge.style.display='none'; return; }
-  if(!state.laatsteBackup){ nudge.style.display='flex'; return; }
-  const dagenGeleden = (Date.now() - new Date(state.laatsteBackup).getTime()) / (1000*60*60*24);
-  nudge.style.display = dagenGeleden >= BACKUP_REMINDER_DAGEN ? 'flex' : 'none';
+  const aantal = state.boekingenSindsBackup||0;
+  if(!state.laatsteBackup && aantal>0){
+    document.getElementById('backupNudgeTekst').textContent = 'Er zijn nog geen back-ups gemaakt. Eén tik en u zit veilig.';
+    nudge.style.display='flex'; return;
+  }
+  if(aantal >= BACKUP_REMINDER_AANTAL){
+    document.getElementById('backupNudgeTekst').textContent = `Er zijn ${aantal} nieuwe boekingen sinds uw laatste back-up.`;
+    nudge.style.display='flex';
+  } else {
+    nudge.style.display='none';
+  }
 }
 
 function vulJarenSelect(){
@@ -656,9 +668,13 @@ function renderBeheer(){
         return `<div class="row-item"><div><div class="who">${naam}</div><div class="meta">${weergaveDatum(b.datum)} · ${typeLabel} · ${b.btw}%</div></div><div style="text-align:right;"><div class="bedrag ${kleur}">${teken}${euro(b.bedragIncl)}</div><button class="btn-danger-text" onclick="verwijderBoeking('${b.id}')">verwijderen</button></div></div>`;
       }).join('');
   const lb = document.getElementById('laatsteBackupTekst');
-  lb.textContent = state.laatsteBackup
+  const aantalSindsBackup = state.boekingenSindsBackup||0;
+  const backupBasisTekst = state.laatsteBackup
     ? `Laatste back-up: ${weergaveDatumTijd(state.laatsteBackup)}`
     : 'Nog geen back-up gemaakt';
+  lb.textContent = aantalSindsBackup>0
+    ? `${backupBasisTekst} · ${aantalSindsBackup} nieuwe boeking${aantalSindsBackup===1?'':'en'} sindsdien`
+    : backupBasisTekst;
 }
 function opslaanBeginsaldo(){
   const bedrag=parseFloat(document.getElementById('beginSaldoInput').value)||0;
@@ -685,6 +701,7 @@ function backupMaken(){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
   state.laatsteBackup = new Date().toISOString();
+  state.boekingenSindsBackup = 0;
   bewaarState();
   toon('⬇️ Back-up gedownload');
   checkBackupHerinnering();
@@ -700,6 +717,7 @@ function backupHerstellen(event){
       if(!confirm('Huidige gegevens vervangen door deze back-up?')){ event.target.value=''; return; }
       state=data;
       if(!state.laatsteBackup) state.laatsteBackup = new Date().toISOString();
+      if(typeof state.boekingenSindsBackup !== 'number') state.boekingenSindsBackup = 0;
       bewaarState(); toon('✅ Back-up hersteld'); renderBeheer(); renderDashboard();
     }catch(err){ toon('❌ Kon bestand niet lezen'); console.error(err); }
     event.target.value='';
